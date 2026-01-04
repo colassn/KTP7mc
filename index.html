@@ -117,8 +117,9 @@
             // Undo Toast State
             const [toast, setToast] = useState(null);
 
-            // Add Prize Modal State
+            // Add Prize Logic
             const [isAddingPrize, setIsAddingPrize] = useState(false);
+            const [isEditingPrizes, setIsEditingPrizes] = useState(false); // 控制刪除模式
 
             // Forms
             const [phone, setPhone] = useState('');
@@ -178,6 +179,14 @@
                     setIsAddingPrize(false);
                 } catch(e) {
                     alert("新增失敗: " + e.message);
+                }
+            };
+
+            // 處理刪除獎品
+            const handleDeletePrize = async (id, name) => {
+                if(confirm(`確定要刪除「${name}」這個獎項嗎？`)) {
+                    await db.collection('prize_types').doc(id).delete();
+                    if(selPrize === id) setSelPrize('');
                 }
             };
 
@@ -261,24 +270,39 @@
                                 <h2 className="font-bold text-lg flex gap-2"><Icon name="PlusCircle" className="text-pink-500"/> 發送卡片</h2>
                                 <input value={phone} onChange={handlePhoneInput} type="tel" className="w-full bg-black/50 p-4 rounded-xl text-center text-2xl font-mono border border-white/20 outline-none focus:border-pink-500 tracking-widest text-white" placeholder="請輸入8位電話號碼"/>
                                 
+                                {/* 獎品列表 */}
                                 <div className="grid grid-cols-2 gap-2">
                                     {prizes.map(p => {
                                         const c = COLORS[p.color]||COLORS.pink;
+                                        // 編輯模式：顯示紅色刪除按鈕
+                                        if (isEditingPrizes) {
+                                            return (
+                                                <button key={p.id} onClick={()=>handleDeletePrize(p.id, p.name)} className="p-3 rounded-xl border border-red-500/50 bg-red-900/20 text-red-400 font-bold flex items-center justify-center gap-2 active:scale-95 transition-all animate-pulse">
+                                                    <Icon name="Trash2" size={16}/> {p.name}
+                                                </button>
+                                            );
+                                        }
+                                        // 正常模式：顯示選擇按鈕
                                         return (
                                             <button key={p.id} onClick={()=>setSelPrize(p.id)} className={`p-3 rounded-xl border text-left font-bold transition-all relative overflow-hidden ${selPrize===p.id?'border-white bg-white/10':'border-white/10 opacity-60'}`}>
                                                 <div style={{color:c.bg}}>{p.name}</div>
                                                 {selPrize===p.id && <div className="absolute right-2 top-2"><Icon name="CheckCircle" size={14} style={{color:c.bg}}/></div>}
                                             </button>
-                                        )
+                                        );
                                     })}
-                                    {/* 新增獎品按鈕 */}
-                                    <button onClick={()=>setIsAddingPrize(true)} className="p-3 rounded-xl border border-dashed border-gray-600 text-gray-400 flex flex-col items-center justify-center gap-1 active:bg-white/5">
-                                        <Icon name="Plus" size={20}/>
-                                        <span className="text-xs">新增獎品</span>
+                                </div>
+
+                                {/* 控制按鈕區 */}
+                                <div className="flex gap-2 mt-2">
+                                    <button onClick={()=>setIsAddingPrize(true)} className="flex-1 p-3 rounded-xl border border-dashed border-gray-500 text-gray-400 flex items-center justify-center gap-2 active:bg-white/5">
+                                        <Icon name="Plus" size={18}/> 新增獎品
+                                    </button>
+                                    <button onClick={()=>setIsEditingPrizes(!isEditingPrizes)} className={`flex-1 p-3 rounded-xl border flex items-center justify-center gap-2 active:bg-white/5 ${isEditingPrizes ? 'border-green-500 text-green-400 bg-green-900/20' : 'border-gray-500 text-gray-400'}`}>
+                                        <Icon name={isEditingPrizes ? "Check" : "Settings"} size={18}/> {isEditingPrizes ? '完成' : '管理'}
                                     </button>
                                 </div>
                                 
-                                <button onClick={addW} className="w-full bg-pink-600 p-3 rounded-xl font-bold shadow-[0_0_15px_#ec4899]">確認發送</button>
+                                <button onClick={addW} className="w-full bg-pink-600 p-3 rounded-xl font-bold shadow-[0_0_15px_#ec4899] mt-4">確認發送</button>
                             </div>
                         )}
                     </div>
