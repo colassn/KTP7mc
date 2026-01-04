@@ -141,6 +141,23 @@
                 return () => { u1(); u2(); };
             }, []);
 
+            // 智能電話處理
+            const handlePhoneInput = (e) => {
+                let val = e.target.value.replace(/\D/g, ''); // 移除非數字
+                
+                // 自動去國碼 (852 開頭且長度超過8)
+                if (val.startsWith('852') && val.length > 8) {
+                    val = val.substring(3);
+                }
+                
+                // 限制長度
+                if (val.length > 8) {
+                    val = val.substring(0, 8);
+                }
+                
+                setPhone(val);
+            };
+
             const addW = async () => {
                 if(phone.length!=8 || !selPrize) return alert("資料不完整 (電話需為8位)");
                 const p = prizes.find(x=>x.id===selPrize);
@@ -258,7 +275,7 @@
                         {tab==='add' && isAdmin && (
                             <div className="glass-card p-6 rounded-3xl space-y-5">
                                 <h2 className="font-bold text-lg flex gap-2"><Icon name="PlusCircle" className="text-pink-500"/> 發送卡片</h2>
-                                <input value={phone} onChange={e=>setPhone(e.target.value.replace(/\D/g,''))} type="tel" maxLength={8} className="w-full bg-black/50 p-4 rounded-xl text-center text-2xl font-mono border border-white/20 outline-none focus:border-pink-500 tracking-widest text-white" placeholder="請輸入8位電話號碼"/>
+                                <input value={phone} onChange={handlePhoneInput} type="tel" className="w-full bg-black/50 p-4 rounded-xl text-center text-2xl font-mono border border-white/20 outline-none focus:border-pink-500 tracking-widest text-white" placeholder="請輸入8位電話號碼"/>
                                 <div className="grid grid-cols-2 gap-2">
                                     {prizes.map(p => {
                                         const c = COLORS[p.color]||COLORS.pink;
