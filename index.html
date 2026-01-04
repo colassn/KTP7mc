@@ -115,7 +115,10 @@
             const [prizes, setPrizes] = useState([]);
             
             // Undo Toast State
-            const [toast, setToast] = useState(null); // { msg, data, timer }
+            const [toast, setToast] = useState(null);
+
+            // Add Prize Modal State
+            const [isAddingPrize, setIsAddingPrize] = useState(false);
 
             // Forms
             const [phone, setPhone] = useState('');
@@ -143,18 +146,9 @@
 
             // 智能電話處理
             const handlePhoneInput = (e) => {
-                let val = e.target.value.replace(/\D/g, ''); // 移除非數字
-                
-                // 自動去國碼 (852 開頭且長度超過8)
-                if (val.startsWith('852') && val.length > 8) {
-                    val = val.substring(3);
-                }
-                
-                // 限制長度
-                if (val.length > 8) {
-                    val = val.substring(0, 8);
-                }
-                
+                let val = e.target.value.replace(/\D/g, ''); 
+                if (val.startsWith('852') && val.length > 8) val = val.substring(3);
+                if (val.length > 8) val = val.substring(0, 8);
                 setPhone(val);
             };
 
@@ -170,24 +164,34 @@
                 } catch(e) { alert("發送失敗: "+e.message); }
             };
 
-            // 恢復刪除
+            // 處理新增獎品
+            const handleAddNewPrize = async () => {
+                if(!newType) return;
+                try {
+                    const docRef = await db.collection('prize_types').add({
+                        name: newType,
+                        color: newColor,
+                        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                    setSelPrize(docRef.id); // 自動選取新獎品
+                    setNewType('');
+                    setIsAddingPrize(false);
+                } catch(e) {
+                    alert("新增失敗: " + e.message);
+                }
+            };
+
             const handleRestore = () => {
                 if(!toast || !toast.data) return;
                 const { id, ...data } = toast.data;
-                // 重新寫入資料
                 db.collection('winners').add(data)
                     .then(() => setToast(null))
                     .catch(e => alert("恢復失敗: "+e.message));
             };
 
-            // 點擊卡片：立即刪除 + 顯示 Toast
             const clickCard = (w) => {
-                // 不需登入，直接執行刪除
                 db.collection('winners').doc(w.id).delete();
-
-                // 設定 Undo Toast
                 if(toast && toast.timer) clearTimeout(toast.timer);
-                
                 const timer = setTimeout(() => setToast(null), 5000);
                 setToast({
                     msg: `[${w.phone}] [${w.prizeName}] 已刪除`,
@@ -196,27 +200,13 @@
                 });
             };
 
-            // 密碼輸入邏輯 (4碼自動驗證)
             const handlePinInput = (key) => {
-                if(key === 'C') {
-                    setPin('');
-                    return;
-                }
-                
+                if(key === 'C') { setPin(''); return; }
                 const nextPin = pin + key;
                 setPin(nextPin);
-
-                // 自動驗證
                 if(nextPin.length === 4) {
-                    if(nextPin === '1234') {
-                        setIsAdmin(true);
-                        setShowPin(false);
-                        setPin('');
-                    } else {
-                        // 密碼錯誤
-                        if(navigator.vibrate) navigator.vibrate(200);
-                        setTimeout(() => setPin(''), 200); // 稍微延遲讓用戶看到錯誤輸入
-                    }
+                    if(nextPin === '1234') { setIsAdmin(true); setShowPin(false); setPin(''); }
+                    else { if(navigator.vibrate) navigator.vibrate(200); setTimeout(() => setPin(''), 200); }
                 }
             };
 
@@ -240,13 +230,10 @@
                                 {winners.map(w => {
                                     const c = COLORS[w.prizeColor]||COLORS.pink;
                                     const waLink = `https://wa.me/852${w.phone}?text=${encodeURIComponent(WA_MSG)}`;
-                                    
                                     return (
                                         <div key={w.id} className={`glass-card rounded-2xl relative overflow-hidden transition-all ${w.isClaimed?'grayscale opacity-40':''}`}
                                             style={{boxShadow: w.isClaimed?'none':`0 0 15px ${c.glow}`}}>
                                             <div style={{position:'absolute',left:0,top:0,bottom:0,width:'5px',background:c.bg}}></div>
-                                            
-                                            {/* 主要點擊區 (刪除) */}
                                             <div className="p-5 flex justify-between items-center cursor-pointer active:bg-white/5" onClick={()=>clickCard(w)}>
                                                 <div>
                                                     <div className="text-xs font-bold px-2 py-0.5 rounded inline-block mb-1 border" style={{borderColor:c.bg, color:c.bg}}>{w.prizeName}</div>
@@ -256,12 +243,9 @@
                                                     <Icon name="Trash2" size={20} className="text-red-400 opacity-60"/>
                                                 </div>
                                             </div>
-
-                                            {/* WhatsApp 按鈕 */}
                                             <div className="px-5 pb-5">
-                                                <a href={waLink} target="_blank" 
-                                                   className="flex items-center justify-center gap-2 w-full py-2 bg-green-600 rounded-lg text-white font-bold text-sm hover:bg-green-500 active:scale-95 transition-all"
-                                                   onClick={(e)=>e.stopPropagation()}>
+                                                <a href={waLink} target="_blank" onClick={(e)=>e.stopPropagation()}
+                                                   className="flex items-center justify-center gap-2 w-full py-2 bg-green-600 rounded-lg text-white font-bold text-sm hover:bg-green-500 active:scale-95 transition-all">
                                                     WhatsApp 通知領獎
                                                 </a>
                                             </div>
@@ -276,6 +260,7 @@
                             <div className="glass-card p-6 rounded-3xl space-y-5">
                                 <h2 className="font-bold text-lg flex gap-2"><Icon name="PlusCircle" className="text-pink-500"/> 發送卡片</h2>
                                 <input value={phone} onChange={handlePhoneInput} type="tel" className="w-full bg-black/50 p-4 rounded-xl text-center text-2xl font-mono border border-white/20 outline-none focus:border-pink-500 tracking-widest text-white" placeholder="請輸入8位電話號碼"/>
+                                
                                 <div className="grid grid-cols-2 gap-2">
                                     {prizes.map(p => {
                                         const c = COLORS[p.color]||COLORS.pink;
@@ -286,40 +271,40 @@
                                             </button>
                                         )
                                     })}
+                                    {/* 新增獎品按鈕 */}
+                                    <button onClick={()=>setIsAddingPrize(true)} className="p-3 rounded-xl border border-dashed border-gray-600 text-gray-400 flex flex-col items-center justify-center gap-1 active:bg-white/5">
+                                        <Icon name="Plus" size={20}/>
+                                        <span className="text-xs">新增獎品</span>
+                                    </button>
                                 </div>
+                                
                                 <button onClick={addW} className="w-full bg-pink-600 p-3 rounded-xl font-bold shadow-[0_0_15px_#ec4899]">確認發送</button>
                             </div>
                         )}
+                    </div>
 
-                        {/* CONFIG TAB */}
-                        {tab==='config' && isAdmin && (
-                            <div className="glass-card p-6 rounded-3xl space-y-4">
-                                <div className="flex gap-2">
-                                    <input value={newType} onChange={e=>setNewType(e.target.value)} className="flex-1 bg-black/50 p-2 rounded-lg border border-white/20 outline-none" placeholder="新獎項名稱"/>
-                                    <button onClick={()=>{if(newType){db.collection('prize_types').add({name:newType,color:newColor,timestamp:firebase.firestore.FieldValue.serverTimestamp()});setNewType('')}}} className="bg-pink-600 px-4 rounded-lg font-bold">+</button>
+                    {/* Add Prize Modal (Popup) */}
+                    {isAddingPrize && (
+                        <div className="fixed inset-0 bg-black/90 z-[70] flex flex-col justify-center items-center backdrop-blur-sm p-6">
+                            <div className="bg-[#1a1a1a] border border-white/20 p-6 rounded-2xl w-full max-w-sm">
+                                <h3 className="text-xl font-bold mb-4 flex items-center gap-2"><Icon name="Gift" className="text-pink-500"/> 新增獎品項目</h3>
+                                <input value={newType} onChange={e=>setNewType(e.target.value)} className="w-full bg-black/50 p-3 rounded-xl border border-white/20 outline-none mb-4 text-white" placeholder="輸入獎品名稱 (如: A賞)" autoFocus/>
+                                <div className="flex gap-2 mb-6 justify-center">
+                                    {Object.keys(COLORS).map(k=><button key={k} onClick={()=>setNewColor(k)} style={{background:COLORS[k].bg}} className={`w-10 h-10 rounded-full border-2 transition-transform ${newColor===k?'border-white scale-110':'border-transparent opacity-60'}`}></button>)}
                                 </div>
-                                <div className="flex gap-2 mb-4">
-                                    {Object.keys(COLORS).map(k=><button key={k} onClick={()=>setNewColor(k)} style={{background:COLORS[k].bg}} className={`w-8 h-8 rounded-full border-2 ${newColor===k?'border-white':'border-transparent'}`}></button>)}
-                                </div>
-                                <div className="space-y-2">
-                                    {prizes.map(p=>(
-                                        <div key={p.id} className="flex justify-between items-center bg-white/5 p-3 rounded-lg border border-white/5">
-                                            <span style={{color:(COLORS[p.color]||COLORS.pink).bg}}>● {p.name}</span>
-                                            <button onClick={()=>db.collection('prize_types').doc(p.id).delete()} className="text-gray-500"><Icon name="Trash2" size={16}/></button>
-                                        </div>
-                                    ))}
+                                <div className="flex gap-3">
+                                    <button onClick={()=>setIsAddingPrize(false)} className="flex-1 py-3 rounded-xl bg-gray-700 font-bold">取消</button>
+                                    <button onClick={handleAddNewPrize} className="flex-1 py-3 rounded-xl bg-pink-600 font-bold">確認新增</button>
                                 </div>
                             </div>
-                        )}
-                    </div>
+                        </div>
+                    )}
 
                     {/* Undo Toast */}
                     {toast && (
                         <div className="toast-enter fixed bottom-24 left-1/2 -translate-x-1/2 w-max max-w-[90%] bg-gray-900 border border-white/20 rounded-full px-5 py-3 shadow-2xl z-[100] flex items-center gap-4 text-sm font-medium backdrop-blur-md">
                             <span className="truncate">{toast.msg}</span>
-                            <button onClick={handleRestore} className="text-pink-500 font-bold whitespace-nowrap hover:text-pink-400 border border-pink-500/50 px-3 py-1 rounded-full bg-pink-500/10">
-                                恢復
-                            </button>
+                            <button onClick={handleRestore} className="text-pink-500 font-bold whitespace-nowrap hover:text-pink-400 border border-pink-500/50 px-3 py-1 rounded-full bg-pink-500/10">恢復</button>
                         </div>
                     )}
 
@@ -331,11 +316,7 @@
                             <div className="grid grid-cols-3 gap-4 w-64">
                                 {[1,2,3,4,5,6,7,8,9,null,0,'C'].map((k, idx) => {
                                     if(k === null) return <div key={idx}></div>;
-                                    return (
-                                        <button key={k} onClick={()=>handlePinInput(k)} className="h-16 rounded-xl bg-white/10 font-bold text-xl active:bg-white/30">
-                                            {k}
-                                        </button>
-                                    );
+                                    return <button key={k} onClick={()=>handlePinInput(k)} className="h-16 rounded-xl bg-white/10 font-bold text-xl active:bg-white/30">{k}</button>;
                                 })}
                             </div>
                             <button onClick={()=>setShowPin(false)} className="mt-8 text-gray-500">取消</button>
@@ -345,7 +326,7 @@
                     {/* Navbar */}
                     {isAdmin && (
                         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 flex gap-4 bg-black/80 backdrop-blur border border-white/10 px-6 py-3 rounded-full shadow-2xl z-40">
-                            {[{id:'list',i:'Grid'},{id:'add',i:'Plus'},{id:'config',i:'Settings'}].map(t=>(
+                            {[{id:'list',i:'Grid'},{id:'add',i:'Plus'}].map(t=>(
                                 <button key={t.id} onClick={()=>setTab(t.id)} className={`transition-all ${tab===t.id?'text-pink-500 scale-125':'text-gray-500'}`}><Icon name={t.i} size={24}/></button>
                             ))}
                         </div>
