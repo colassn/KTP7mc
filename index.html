@@ -21,6 +21,10 @@
         @keyframes spin { to { transform: rotate(360deg); } }
         .bg-anim { background: radial-gradient(circle at 50% 10%, #1f1033, #000000 80%); position: fixed; inset: 0; z-index: -1; }
         .glass-card { background: rgba(255,255,255,0.05); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 4px 30px rgba(0,0,0,0.3); }
+        
+        /* Toast 動畫 */
+        @keyframes slideUp { from { transform: translate(-50%, 100%); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
+        .toast-enter { animation: slideUp 0.3s ease-out forwards; }
     </style>
 </head>
 <body>
@@ -34,7 +38,6 @@
     <div id="root"></div>
 
     <script>
-        // 強制錯誤顯示
         window.onerror = function(msg, url, line) {
             const l = document.getElementById('loader');
             l.innerHTML = `<div style="color:red; padding:20px; text-align:center;">
@@ -69,9 +72,8 @@
         const auth = firebase.auth();
         auth.signInAnonymously().catch(e => console.error("Auth Error:", e));
 
-        const { useState, useEffect } = React;
+        const { useState, useEffect, useRef } = React;
 
-        // --- 內建圖標系統 ---
         const ICONS = {
             Zap: <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />,
             Lock: <><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></>,
@@ -112,6 +114,9 @@
             const [winners, setWinners] = useState([]);
             const [prizes, setPrizes] = useState([]);
             
+            // Undo Toast State
+            const [toast, setToast] = useState(null); // { msg, data, timer }
+
             // Forms
             const [phone, setPhone] = useState('');
             const [selPrize, setSelPrize] = useState('');
@@ -148,16 +153,30 @@
                 } catch(e) { alert("發送失敗: "+e.message); }
             };
 
+            // 恢復刪除
+            const handleRestore = () => {
+                if(!toast || !toast.data) return;
+                const { id, ...data } = toast.data;
+                // 重新寫入資料
+                db.collection('winners').add(data)
+                    .then(() => setToast(null))
+                    .catch(e => alert("恢復失敗: "+e.message));
+            };
+
+            // 點擊卡片：立即刪除 + 顯示 Toast
             const clickCard = (w) => {
-                if(!isAdmin) return;
-                if(!w.isClaimed) {
-                    if(confirm("確認已派獎？")) {
-                        if(confirm("派獎後刪除卡片？ (取消=保留)")) db.collection('winners').doc(w.id).delete();
-                        else db.collection('winners').doc(w.id).update({isClaimed:true});
-                    }
-                } else {
-                    if(confirm("恢復為未領取？")) db.collection('winners').doc(w.id).update({isClaimed:false});
-                }
+                // 不需登入，直接執行刪除
+                db.collection('winners').doc(w.id).delete();
+
+                // 設定 Undo Toast
+                if(toast && toast.timer) clearTimeout(toast.timer);
+                
+                const timer = setTimeout(() => setToast(null), 5000);
+                setToast({
+                    msg: `[${w.phone}] [${w.prizeName}] 已刪除`,
+                    data: w,
+                    timer: timer
+                });
             };
 
             return (
@@ -186,14 +205,14 @@
                                             style={{boxShadow: w.isClaimed?'none':`0 0 15px ${c.glow}`}}>
                                             <div style={{position:'absolute',left:0,top:0,bottom:0,width:'5px',background:c.bg}}></div>
                                             
-                                            {/* 主要點擊區 */}
-                                            <div className="p-5 flex justify-between items-center cursor-pointer" onClick={()=>clickCard(w)}>
+                                            {/* 主要點擊區 (刪除) */}
+                                            <div className="p-5 flex justify-between items-center cursor-pointer active:bg-white/5" onClick={()=>clickCard(w)}>
                                                 <div>
                                                     <div className="text-xs font-bold px-2 py-0.5 rounded inline-block mb-1 border" style={{borderColor:c.bg, color:c.bg}}>{w.prizeName}</div>
                                                     <div className="text-4xl font-mono font-bold tracking-tighter">{w.phone}</div>
                                                 </div>
                                                 <div className={`w-10 h-10 rounded-full flex items-center justify-center ${w.isClaimed?'bg-gray-700':'bg-white/10'}`}>
-                                                    <Icon name={w.isClaimed?"Check":"Gift"} style={{color:w.isClaimed?'gray':c.bg}}/>
+                                                    <Icon name="Trash2" size={20} className="text-red-400 opacity-60"/>
                                                 </div>
                                             </div>
 
@@ -252,6 +271,16 @@
                             </div>
                         )}
                     </div>
+
+                    {/* Undo Toast */}
+                    {toast && (
+                        <div className="toast-enter fixed bottom-24 left-1/2 -translate-x-1/2 w-max max-w-[90%] bg-gray-900 border border-white/20 rounded-full px-5 py-3 shadow-2xl z-[100] flex items-center gap-4 text-sm font-medium backdrop-blur-md">
+                            <span className="truncate">{toast.msg}</span>
+                            <button onClick={handleRestore} className="text-pink-500 font-bold whitespace-nowrap hover:text-pink-400 border border-pink-500/50 px-3 py-1 rounded-full bg-pink-500/10">
+                                恢復
+                            </button>
+                        </div>
+                    )}
 
                     {/* PIN Pad */}
                     {showPin && (
