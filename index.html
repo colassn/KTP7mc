@@ -2,76 +2,57 @@
 <html lang="zh-HK">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>夾夾樂派獎中心</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>成人台獎品管理</title>
     
-    <!-- 1. 載入 Tailwind CSS (用於樣式) -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
     
-    <!-- 2. 載入 React 和 ReactDOM -->
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    
-    <!-- 3. 載入 Babel (用於解析 JSX) -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
-    <!-- 4. 載入 Lucide Icons (圖標) -->
-    <script src="https://unpkg.com/lucide@latest"></script>
-
-    <!-- 自定義動畫樣式 -->
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&display=swap');
-        
-        body { font-family: 'Noto Sans TC', sans-serif; }
-
-        @keyframes float {
-            0% { transform: translateY(0px); }
-            50% { transform: translateY(-10px); }
-            100% { transform: translateY(0px); }
-        }
-        @keyframes pulse-glow {
-            0%, 100% { box-shadow: 0 0 10px #ff00de, 0 0 20px #ff00de; }
-            50% { box-shadow: 0 0 20px #00ffff, 0 0 40px #00ffff; }
-        }
-        @keyframes gradient-bg {
-            0% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-            100% { background-position: 0% 50%; }
-        }
-        .animate-float { animation: float 3s ease-in-out infinite; }
-        .animate-pulse-glow { animation: pulse-glow 2s infinite; }
-        .bg-animated {
-            background: linear-gradient(-45deg, #1a1a2e, #16213e, #2a0a2e, #0f3460);
-            background-size: 400% 400%;
-            animation: gradient-bg 15s ease infinite;
-        }
-        .glass-panel {
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
-        }
-        /* 隱藏滾動條但保持滾動 */
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        body { background-color: #000; color: white; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; -webkit-tap-highlight-color: transparent; }
+        #loader { position: fixed; inset: 0; background: #000; z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .spinner { width: 40px; height: 40px; border: 4px solid #ec4899; border-top-color: transparent; border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .bg-anim { background: radial-gradient(circle at 50% 10%, #1f1033, #000000 80%); position: fixed; inset: 0; z-index: -1; }
+        .glass-card { background: rgba(255,255,255,0.05); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 4px 30px rgba(0,0,0,0.3); }
     </style>
 </head>
-<body class="bg-black text-white min-h-screen">
+<body>
+
+    <div id="loader">
+        <div class="spinner"></div>
+        <div style="margin-top:20px; color:#ec4899; font-weight:bold;">SYSTEM LOADING...</div>
+        <div id="loader-tips" style="margin-top:10px; color:gray; font-size:12px;">正在啟動...</div>
+    </div>
+    
     <div id="root"></div>
 
-    <!-- 這裡開始主要的程式邏輯 -->
-    <script type="text/babel" data-type="module">
-        // --- 導入 Firebase 模組 ---
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-        import { 
-            getFirestore, collection, addDoc, updateDoc, deleteDoc, 
-            doc, onSnapshot, query, orderBy, serverTimestamp 
-        } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    <script>
+        // 強制錯誤顯示
+        window.onerror = function(msg, url, line) {
+            const l = document.getElementById('loader');
+            l.innerHTML = `<div style="color:red; padding:20px; text-align:center;">
+                <h2 style="font-size:20px; margin-bottom:10px;">⚠️ 發生錯誤</h2>
+                <p>${msg}</p>
+                <p style="font-size:12px; color:gray; margin-top:10px;">Line: ${line}</p>
+            </div>`;
+        };
+        setTimeout(() => {
+            const l = document.getElementById('loader');
+            if(l && l.style.display!=='none') document.getElementById('loader-tips').innerHTML = "載入過久... <br>請檢查網路，或 Firebase 設定是否正確";
+        }, 5000);
+    </script>
 
-        // =========================================================================
-        //  已填入你的資料庫設定
-        // =========================================================================
+    <script type="text/babel">
+        // ==========================================
+        // ⚠️ Firebase Config ⚠️
+        // ==========================================
         const firebaseConfig = {
           apiKey: "AIzaSyCEM9T47ajTYWYwZO84qRWLlzfYVZVkmFw",
           authDomain: "machine7-1316f.firebaseapp.com",
@@ -81,481 +62,225 @@
           appId: "1:468967450902:web:2c81e35e58f0dd36d4c837",
           measurementId: "G-NQXGNRRH3J"
         };
-        // =========================================================================
+        // ==========================================
 
-        // 初始化 Firebase
-        let app, auth, db;
-        try {
-            app = initializeApp(firebaseConfig);
-            auth = getAuth(app);
-            db = getFirestore(app);
-            // 匿名登入 (確保有權限讀寫)
-            signInAnonymously(auth).catch((error) => console.error("登入失敗 (請檢查 Firebase Authentication 是否開啟匿名登入):", error));
-        } catch (e) {
-            console.error("Firebase 初始化失敗:", e);
-        }
+        try { if (!firebase.apps.length) firebase.initializeApp(firebaseConfig); } catch (e) { console.error(e); }
+        const db = firebase.firestore();
+        const auth = firebase.auth();
+        auth.signInAnonymously().catch(e => console.error("Auth Error:", e));
 
         const { useState, useEffect } = React;
-        const { Lock, Unlock, Plus, Trash2, Gift, CheckCircle, Settings, Smartphone, RefreshCw, X } = lucide;
 
-        // --- 主程式組件 ---
+        // --- 內建圖標系統 ---
+        const ICONS = {
+            Zap: <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />,
+            Lock: <><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></>,
+            Unlock: <><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 9.9-1" /></>,
+            Gift: <><polyline points="20 12 20 22 4 22 4 12" /><rect x="2" y="7" width="20" height="5" /><line x1="12" y1="22" x2="12" y2="7" /><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z" /><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z" /></>,
+            Check: <polyline points="20 6 9 17 4 12" />,
+            CheckCircle: <><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></>,
+            Ghost: <path d="M9 22l1-2.5L12 22l2-2.5L16 22l-1-2.5 2.5-1.5a9 9 0 1 0-14.5-3.5L3 16l3 2.5.5 3.5" />,
+            Trash2: <><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" /></>,
+            Plus: <><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></>,
+            PlusCircle: <><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="16" /><line x1="8" y1="12" x2="16" y2="12" /></>,
+            Settings: <><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" /></>,
+            Grid: <><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></>
+        };
+
+        const Icon = ({ name, size=24, className, style }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+                {ICONS[name] || <circle cx="12" cy="12" r="10" />}
+            </svg>
+        );
+
+        const COLORS = {
+            pink: {bg:'#ec4899', glow:'rgba(236,72,153,0.3)'},
+            purple: {bg:'#a855f7', glow:'rgba(168,85,247,0.3)'},
+            cyan: {bg:'#06b6d4', glow:'rgba(6,182,212,0.3)'},
+            yellow: {bg:'#eab308', glow:'rgba(234,179,8,0.3)'},
+            green: {bg:'#22c55e', glow:'rgba(34,197,94,0.3)'},
+            red: {bg:'#ef4444', glow:'rgba(239,68,68,0.3)'}
+        };
+
+        const WA_MSG = `你好！獎品已派送！如有任何問題歡迎詢問我們謝謝🙏🏻\n\n🔹地址：\n1️⃣香港 觀塘 開源道60號 駱駝漆三座後巷 B5鋪閣樓\n2️⃣ 香港 觀塘廣場 一樓 15D2鋪\n✨招台主中✨`;
+
         function App() {
             const [isAdmin, setIsAdmin] = useState(false);
-            const [showPinPad, setShowPinPad] = useState(false);
-            const [pinInput, setPinInput] = useState('');
-            
+            const [showPin, setShowPin] = useState(false);
+            const [pin, setPin] = useState('');
+            const [tab, setTab] = useState('list');
             const [winners, setWinners] = useState([]);
-            const [prizeTypes, setPrizeTypes] = useState([]);
-            const [loading, setLoading] = useState(true);
-
-            const [activeTab, setActiveTab] = useState('list'); // 'list', 'add', 'config'
-            const [modalConfig, setModalConfig] = useState({ show: false, title: '', message: '', onConfirm: null, type: 'info' });
+            const [prizes, setPrizes] = useState([]);
             
-            const [newWinnerPhone, setNewWinnerPhone] = useState('');
-            const [selectedPrizeId, setSelectedPrizeId] = useState('');
-            const [newPrizeName, setNewPrizeName] = useState('');
-            const [newPrizeColor, setNewPrizeColor] = useState('pink');
+            // Forms
+            const [phone, setPhone] = useState('');
+            const [selPrize, setSelPrize] = useState('');
+            const [newType, setNewType] = useState('');
+            const [newColor, setNewColor] = useState('pink');
 
-            // 監聽數據
             useEffect(() => {
-                if (!db) return;
+                document.getElementById('loader').style.display = 'none';
 
-                // 獲取獎品類型
-                // 為了避免 "需要建立索引" 的錯誤，我們直接抓取整個 collection，然後在前端 JS 排序
-                const unsubPrize = onSnapshot(collection(db, 'prize_types'), (snapshot) => {
-                    const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                    // 簡單在客戶端排序 (舊 -> 新)
-                    data.sort((a, b) => (a.timestamp?.seconds || 0) - (b.timestamp?.seconds || 0));
-                    setPrizeTypes(data);
-                }, (error) => {
-                    console.error("讀取獎品失敗 (請檢查 Firebase Rules):", error);
-                });
+                const u1 = db.collection('prize_types').onSnapshot(s => {
+                    const d = s.docs.map(i=>({id:i.id,...i.data()}));
+                    d.sort((a,b)=>(a.timestamp?.seconds||0)-(b.timestamp?.seconds||0));
+                    setPrizes(d);
+                }, err => console.error(err));
 
-                // 獲取獲獎者
-                const unsubWinner = onSnapshot(collection(db, 'winners'), (snapshot) => {
-                    const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                    // 按照時間倒序 (新 -> 舊)
-                    data.sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
-                    setWinners(data);
-                    setLoading(false);
-                }, (error) => {
-                    console.error("讀取名單失敗 (請檢查 Firebase Rules):", error);
-                    setLoading(false);
-                });
+                const u2 = db.collection('winners').onSnapshot(s => {
+                    const d = s.docs.map(i=>({id:i.id,...i.data()}));
+                    d.sort((a,b)=>(b.timestamp?.seconds||0)-(a.timestamp?.seconds||0));
+                    setWinners(d);
+                }, err => console.error(err));
 
-                return () => {
-                    unsubPrize();
-                    unsubWinner();
-                };
+                return () => { u1(); u2(); };
             }, []);
 
-            // --- 功能函數 ---
+            const addW = async () => {
+                if(phone.length!=8 || !selPrize) return alert("資料不完整 (電話需為8位)");
+                const p = prizes.find(x=>x.id===selPrize);
+                try {
+                    await db.collection('winners').add({
+                        phone, prizeId:p.id, prizeName:p.name, prizeColor:p.color, isClaimed:false,
+                        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                    setPhone(''); alert("發送成功");
+                } catch(e) { alert("發送失敗: "+e.message); }
+            };
 
-            const handleLogin = () => {
-                if (pinInput === '1234') { 
-                    setIsAdmin(true);
-                    setShowPinPad(false);
-                    setPinInput('');
-                    showAlert('登入成功', '歡迎回來，台主！', 'success');
+            const clickCard = (w) => {
+                if(!isAdmin) return;
+                if(!w.isClaimed) {
+                    if(confirm("確認已派獎？")) {
+                        if(confirm("派獎後刪除卡片？ (取消=保留)")) db.collection('winners').doc(w.id).delete();
+                        else db.collection('winners').doc(w.id).update({isClaimed:true});
+                    }
                 } else {
-                    showAlert('錯誤', '密碼不正確', 'error');
-                    setPinInput('');
+                    if(confirm("恢復為未領取？")) db.collection('winners').doc(w.id).update({isClaimed:false});
                 }
             };
-
-            const handleAddPrizeType = async () => {
-                if (!newPrizeName.trim()) return;
-                try {
-                    await addDoc(collection(db, 'prize_types'), {
-                        name: newPrizeName,
-                        color: newPrizeColor,
-                        timestamp: serverTimestamp()
-                    });
-                    setNewPrizeName('');
-                    showAlert('成功', '獎品類別已新增', 'success');
-                } catch (e) {
-                    console.error(e);
-                    showAlert('錯誤', '新增失敗，請檢查資料庫權限', 'error');
-                }
-            };
-
-            const handleDeletePrizeType = async (id) => {
-                if(!confirm("確定刪除此獎項分類？")) return;
-                try {
-                    await deleteDoc(doc(db, 'prize_types', id));
-                } catch (e) { console.error(e); }
-            };
-
-            const handleAddWinner = async () => {
-                if (newWinnerPhone.length !== 4) {
-                    showAlert('格式錯誤', '請輸入電話號碼頭 4 位數', 'error');
-                    return;
-                }
-                if (!selectedPrizeId) {
-                    showAlert('選擇錯誤', '請選擇一個獎品', 'error');
-                    return;
-                }
-
-                const prize = prizeTypes.find(p => p.id === selectedPrizeId);
-                
-                try {
-                    await addDoc(collection(db, 'winners'), {
-                        phone: newWinnerPhone,
-                        prizeName: prize.name,
-                        prizeColor: prize.color,
-                        prizeId: prize.id,
-                        isClaimed: false,
-                        timestamp: serverTimestamp()
-                    });
-                    setNewWinnerPhone('');
-                    showAlert('恭喜', '得獎資料已錄入！', 'success');
-                    setActiveTab('list');
-                } catch (e) {
-                    console.error(e);
-                    showAlert('錯誤', '儲存失敗，請檢查資料庫權限', 'error');
-                }
-            };
-
-            const toggleWinnerStatus = async (winner) => {
-                if (!isAdmin) return;
-                const newStatus = !winner.isClaimed;
-
-                if (newStatus === true) {
-                    // 如果變成已派獎 (✅)
-                    setModalConfig({
-                        show: true,
-                        title: '已標記為已派獎 ✅',
-                        message: '獎品已派發。您想要保留此紀錄，還是直接從列表中刪除？',
-                        type: 'question',
-                        onConfirm: async () => {
-                            await deleteDoc(doc(db, 'winners', winner.id));
-                            setModalConfig(prev => ({ ...prev, show: false }));
-                        },
-                        onCancel: async () => {
-                            await updateDoc(doc(db, 'winners', winner.id), { isClaimed: true });
-                            setModalConfig(prev => ({ ...prev, show: false }));
-                        },
-                        confirmText: '刪除紀錄',
-                        cancelText: '保留紀錄'
-                    });
-                } else {
-                    // 取消派獎狀態 (變回 ❌)
-                    await updateDoc(doc(db, 'winners', winner.id), { isClaimed: false });
-                }
-            };
-
-            const showAlert = (title, message, type = 'info') => {
-                setModalConfig({
-                    show: true, title, message, type,
-                    onConfirm: () => setModalConfig(prev => ({ ...prev, show: false })),
-                    confirmText: '確定'
-                });
-            };
-
-            // --- 子組件：Modal ---
-            const Modal = () => {
-                if (!modalConfig.show) return null;
-                return (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]">
-                        <div className="bg-gray-900 border border-pink-500/50 rounded-2xl p-6 max-w-sm w-full shadow-[0_0_50px_rgba(255,0,128,0.3)] transform transition-all scale-100">
-                            <h3 className={`text-xl font-bold mb-2 ${modalConfig.type === 'error' ? 'text-red-400' : 'text-pink-400'}`}>
-                                {modalConfig.title}
-                            </h3>
-                            <p className="text-gray-300 mb-6 leading-relaxed">{modalConfig.message}</p>
-                            <div className="flex gap-3 justify-end">
-                                {modalConfig.type === 'question' && (
-                                    <button 
-                                        onClick={modalConfig.onCancel}
-                                        className="px-4 py-2 rounded-lg bg-gray-700 text-white hover:bg-gray-600 transition-colors"
-                                    >
-                                        {modalConfig.cancelText || '取消'}
-                                    </button>
-                                )}
-                                <button 
-                                    onClick={modalConfig.onConfirm}
-                                    className={`px-4 py-2 rounded-lg font-bold text-white shadow-lg transition-transform active:scale-95 
-                                        ${modalConfig.type === 'error' ? 'bg-red-600 hover:bg-red-500' : 'bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-400 hover:to-purple-500'}`}
-                                >
-                                    {modalConfig.confirmText || '確定'}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                );
-            };
-
-            if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-pink-500 animate-pulse">載入系統中...</div>;
 
             return (
-                <div className="min-h-screen text-white bg-animated font-sans overflow-hidden relative">
-                    <Modal />
-
+                <div className="bg-anim min-h-screen pb-24">
                     {/* Header */}
-                    <header className="p-4 flex justify-between items-center glass-panel sticky top-0 z-10 rounded-b-3xl mx-2 mt-0 border-t-0 border-x-0 border-b-pink-500/30">
-                        <div className="flex items-center gap-2">
-                            <Gift className="text-pink-500 animate-bounce" size={28} />
-                            <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-pink-400 to-cyan-400">
-                                夾夾樂派獎中心
-                            </h1>
+                    <div className="sticky top-0 z-50 bg-black/80 backdrop-blur border-b border-white/10 p-4 flex justify-between items-center">
+                        <div className="flex items-center gap-2 font-bold text-lg text-white">
+                            <div className="text-pink-500"><Icon name="Zap"/></div> 成人台獎品管理
                         </div>
-                        <button 
-                            onClick={() => isAdmin ? setIsAdmin(false) : setShowPinPad(true)}
-                            className={`p-2 rounded-full transition-all duration-300 ${isAdmin ? 'bg-pink-500/20 text-pink-400' : 'bg-white/5 text-gray-400 hover:text-white'}`}
-                        >
-                            {isAdmin ? <Unlock size={20} /> : <Lock size={20} />}
+                        <button onClick={()=>isAdmin?setIsAdmin(false):setShowPin(true)} className="p-2 bg-white/10 rounded-full">
+                            <Icon name={isAdmin?"Unlock":"Lock"} className={isAdmin?"text-green-400":"text-gray-400"}/>
                         </button>
-                    </header>
+                    </div>
 
-                    <main className="p-4 pb-24 max-w-md mx-auto">
-                        
-                        {/* PIN Pad Overlay */}
-                        {showPinPad && (
-                            <div className="fixed inset-0 z-40 bg-black/95 flex flex-col items-center justify-center p-6 animate-[fadeIn_0.3s_ease-out]">
-                                <h2 className="text-2xl font-bold text-cyan-400 mb-8 animate-float">管理員驗證</h2>
-                                <div className="flex gap-4 mb-8">
-                                    {[...Array(4)].map((_, i) => (
-                                        <div key={i} className={`w-4 h-4 rounded-full transition-colors duration-300 ${pinInput.length > i ? 'bg-pink-500 shadow-[0_0_10px_#ec4899]' : 'bg-gray-700'}`} />
-                                    ))}
-                                </div>
-                                <div className="grid grid-cols-3 gap-4 w-full max-w-[280px]">
-                                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 'C', 0, 'Go'].map((key) => (
-                                        <button
-                                            key={key}
-                                            onClick={() => {
-                                                if (key === 'C') setPinInput('');
-                                                else if (key === 'Go') handleLogin();
-                                                else if (pinInput.length < 4) setPinInput(prev => prev + key);
-                                            }}
-                                            className={`h-16 rounded-xl font-bold text-xl flex items-center justify-center transition-all active:scale-95
-                                                ${key === 'Go' ? 'bg-gradient-to-tr from-cyan-500 to-blue-500 text-white shadow-[0_0_15px_rgba(6,182,212,0.5)]' : 
-                                                  key === 'C' ? 'bg-red-500/20 text-red-400' : 'bg-white/10 hover:bg-white/20'}`}
-                                        >
-                                            {key}
-                                        </button>
-                                    ))}
-                                </div>
-                                <button onClick={() => setShowPinPad(false)} className="mt-8 text-gray-500 text-sm">取消返回</button>
-                            </div>
-                        )}
-
-                        {/* --- VIEW: PRIZE LIST --- */}
-                        {activeTab === 'list' && (
-                            <div className="space-y-4 animate-[slideIn_0.3s_ease-out]">
-                                <div className="flex justify-between items-end mb-2 px-1">
-                                    <h2 className="text-gray-300 text-sm font-medium">最新得獎名單</h2>
-                                    <div className="text-xs text-pink-400 animate-pulse">● 即時更新中</div>
-                                </div>
-
-                                {winners.length === 0 ? (
-                                    <div className="text-center py-20 opacity-50">
-                                        <Gift className="mx-auto mb-4 text-gray-600" size={48} />
-                                        <p>目前還沒有得獎者<br/>快來挑戰吧！</p>
-                                    </div>
-                                ) : (
-                                    winners.map((winner) => (
-                                        <div 
-                                            key={winner.id}
-                                            className={`relative p-4 rounded-2xl glass-panel flex items-center justify-between group transition-all duration-300
-                                                ${winner.isClaimed ? 'border-l-4 border-l-gray-600 opacity-60 bg-black/20' : `border-l-4 border-l-${winner.prizeColor || 'pink'}-500 hover:translate-x-1`}`}
-                                        >
-                                            <div className="flex items-center gap-4">
-                                                <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-xl shadow-lg
-                                                    ${winner.isClaimed ? 'bg-gray-800 text-gray-500' : 'bg-gradient-to-br from-pink-500 to-purple-600 text-white'}`}>
-                                                    {winner.prizeName ? winner.prizeName[0] : '?'}
-                                                </div>
+                    <div className="p-4 max-w-lg mx-auto">
+                        {/* LIST TAB */}
+                        {tab==='list' && (
+                            <div className="grid grid-cols-1 gap-4">
+                                {winners.length===0 && <div className="text-center py-20 opacity-50"><Icon name="Ghost" size={48} className="mx-auto mb-2"/><p>暫無資料</p></div>}
+                                {winners.map(w => {
+                                    const c = COLORS[w.prizeColor]||COLORS.pink;
+                                    const waLink = `https://wa.me/852${w.phone}?text=${encodeURIComponent(WA_MSG)}`;
+                                    
+                                    return (
+                                        <div key={w.id} className={`glass-card rounded-2xl relative overflow-hidden transition-all ${w.isClaimed?'grayscale opacity-40':''}`}
+                                            style={{boxShadow: w.isClaimed?'none':`0 0 15px ${c.glow}`}}>
+                                            <div style={{position:'absolute',left:0,top:0,bottom:0,width:'5px',background:c.bg}}></div>
+                                            
+                                            {/* 主要點擊區 */}
+                                            <div className="p-5 flex justify-between items-center cursor-pointer" onClick={()=>clickCard(w)}>
                                                 <div>
-                                                    <p className="text-sm text-gray-400">電話尾號</p>
-                                                    <h3 className="text-2xl font-mono tracking-widest font-bold text-white">
-                                                        {winner.phone}
-                                                    </h3>
-                                                    <div className="mt-1 inline-block px-2 py-0.5 rounded text-xs bg-white/10 text-cyan-300">
-                                                        {winner.prizeName}
-                                                    </div>
+                                                    <div className="text-xs font-bold px-2 py-0.5 rounded inline-block mb-1 border" style={{borderColor:c.bg, color:c.bg}}>{w.prizeName}</div>
+                                                    <div className="text-4xl font-mono font-bold tracking-tighter">{w.phone}</div>
+                                                </div>
+                                                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${w.isClaimed?'bg-gray-700':'bg-white/10'}`}>
+                                                    <Icon name={w.isClaimed?"Check":"Gift"} style={{color:w.isClaimed?'gray':c.bg}}/>
                                                 </div>
                                             </div>
 
-                                            <div className="flex flex-col items-center gap-2">
-                                                {isAdmin ? (
-                                                    <button 
-                                                        onClick={() => toggleWinnerStatus(winner)}
-                                                        className={`p-2 rounded-full transition-all active:scale-90 shadow-lg
-                                                            ${winner.isClaimed ? 'bg-gray-700 text-gray-400 hover:bg-gray-600' : 'bg-gradient-to-r from-green-400 to-emerald-600 text-white animate-pulse-glow'}`}
-                                                    >
-                                                        {winner.isClaimed ? <RefreshCw size={24} /> : <CheckCircle size={24} />}
-                                                    </button>
-                                                ) : (
-                                                    <div className={`p-2 rounded-full ${winner.isClaimed ? 'text-gray-500' : 'text-green-400'}`}>
-                                                        {winner.isClaimed ? <CheckCircle size={24} /> : <Gift size={24} className="animate-bounce" />}
-                                                    </div>
-                                                )}
-                                                <span className="text-[10px] font-bold tracking-wider">
-                                                    {winner.isClaimed ? '已派發' : '未領取'}
-                                                </span>
+                                            {/* WhatsApp 按鈕 */}
+                                            <div className="px-5 pb-5">
+                                                <a href={waLink} target="_blank" 
+                                                   className="flex items-center justify-center gap-2 w-full py-2 bg-green-600 rounded-lg text-white font-bold text-sm hover:bg-green-500 active:scale-95 transition-all"
+                                                   onClick={(e)=>e.stopPropagation()}>
+                                                    WhatsApp 通知領獎
+                                                </a>
                                             </div>
                                         </div>
-                                    ))
-                                )}
+                                    )
+                                })}
                             </div>
                         )}
 
-                        {/* --- VIEW: ADD WINNER --- */}
-                        {activeTab === 'add' && isAdmin && (
-                            <div className="animate-[slideIn_0.3s_ease-out]">
-                                <h2 className="text-xl font-bold mb-6 flex items-center gap-2 text-cyan-400">
-                                    <Plus className="bg-cyan-500/20 rounded p-1" size={28} /> 新增得獎者
-                                </h2>
-                                
-                                <div className="glass-panel p-6 rounded-2xl space-y-6">
-                                    <div>
-                                        <label className="block text-sm text-gray-400 mb-2">得獎者電話 (頭 4 位)</label>
-                                        <div className="flex items-center gap-2 bg-black/40 p-4 rounded-xl border border-white/10 focus-within:border-pink-500 transition-colors">
-                                            <Smartphone className="text-pink-500" />
-                                            <input 
-                                                type="tel" 
-                                                maxLength={4}
-                                                value={newWinnerPhone}
-                                                onChange={(e) => setNewWinnerPhone(e.target.value.replace(/\D/g, ''))}
-                                                placeholder="例如: 9876"
-                                                className="bg-transparent w-full outline-none text-2xl font-mono tracking-widest text-white placeholder-gray-600"
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-sm text-gray-400 mb-2">選擇獎品</label>
-                                        <div className="grid grid-cols-2 gap-3">
-                                            {prizeTypes.map(prize => (
-                                                <button
-                                                    key={prize.id}
-                                                    onClick={() => setSelectedPrizeId(prize.id)}
-                                                    className={`p-4 rounded-xl border transition-all duration-200 relative overflow-hidden
-                                                        ${selectedPrizeId === prize.id 
-                                                            ? 'border-pink-500 bg-pink-500/20 shadow-[0_0_15px_rgba(236,72,153,0.3)]' 
-                                                            : 'border-white/10 bg-white/5 hover:bg-white/10'}`}
-                                                >
-                                                    <div className={`absolute top-0 right-0 p-1 ${selectedPrizeId === prize.id ? 'opacity-100' : 'opacity-0'}`}>
-                                                        <CheckCircle size={16} className="text-pink-400" />
-                                                    </div>
-                                                    <div className="font-bold text-lg">{prize.name}</div>
-                                                    <div className={`text-xs mt-1 text-${prize.color}-400 opacity-80 uppercase`}>
-                                                        {prize.color} Tier
-                                                    </div>
-                                                </button>
-                                            ))}
-                                            <button 
-                                                onClick={() => setActiveTab('config')}
-                                                className="p-4 rounded-xl border border-dashed border-gray-600 text-gray-500 hover:border-gray-400 hover:text-gray-300 flex flex-col items-center justify-center gap-1"
-                                            >
-                                                <Settings size={16} />
-                                                <span className="text-xs">管理獎項</span>
+                        {/* ADD TAB */}
+                        {tab==='add' && isAdmin && (
+                            <div className="glass-card p-6 rounded-3xl space-y-5">
+                                <h2 className="font-bold text-lg flex gap-2"><Icon name="PlusCircle" className="text-pink-500"/> 發送卡片</h2>
+                                <input value={phone} onChange={e=>setPhone(e.target.value.replace(/\D/g,''))} type="tel" maxLength={8} className="w-full bg-black/50 p-4 rounded-xl text-center text-2xl font-mono border border-white/20 outline-none focus:border-pink-500 tracking-widest text-white" placeholder="請輸入8位電話號碼"/>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {prizes.map(p => {
+                                        const c = COLORS[p.color]||COLORS.pink;
+                                        return (
+                                            <button key={p.id} onClick={()=>setSelPrize(p.id)} className={`p-3 rounded-xl border text-left font-bold transition-all relative overflow-hidden ${selPrize===p.id?'border-white bg-white/10':'border-white/10 opacity-60'}`}>
+                                                <div style={{color:c.bg}}>{p.name}</div>
+                                                {selPrize===p.id && <div className="absolute right-2 top-2"><Icon name="CheckCircle" size={14} style={{color:c.bg}}/></div>}
                                             </button>
-                                        </div>
-                                    </div>
-
-                                    <button 
-                                        onClick={handleAddWinner}
-                                        className="w-full py-4 rounded-xl font-bold text-lg bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white shadow-lg shadow-cyan-500/20 active:scale-95 transition-all"
-                                    >
-                                        確認登錄
-                                    </button>
+                                        )
+                                    })}
                                 </div>
+                                <button onClick={addW} className="w-full bg-pink-600 p-3 rounded-xl font-bold shadow-[0_0_15px_#ec4899]">確認發送</button>
                             </div>
                         )}
 
-                        {/* --- VIEW: PRIZE CONFIG --- */}
-                        {activeTab === 'config' && isAdmin && (
-                            <div className="animate-[slideIn_0.3s_ease-out]">
-                                <h2 className="text-xl font-bold mb-6 flex items-center gap-2 text-pink-400">
-                                    <Settings className="bg-pink-500/20 rounded p-1" size={28} /> 獎品設定
-                                </h2>
-
-                                <div className="glass-panel p-4 rounded-2xl mb-6">
-                                    <h3 className="text-sm font-bold text-gray-400 mb-4 uppercase tracking-wider">新增類別</h3>
-                                    <div className="flex flex-col gap-3">
-                                        <input 
-                                            type="text" 
-                                            value={newPrizeName}
-                                            onChange={(e) => setNewPrizeName(e.target.value)}
-                                            placeholder="獎品名稱 (例: 粉嫩獎)"
-                                            className="bg-black/40 p-3 rounded-lg border border-white/10 outline-none text-white focus:border-pink-500"
-                                        />
-                                        <div className="flex gap-2 overflow-x-auto pb-2">
-                                            {['pink', 'cyan', 'purple', 'yellow', 'green'].map(color => (
-                                                <button
-                                                    key={color}
-                                                    onClick={() => setNewPrizeColor(color)}
-                                                    className={`w-8 h-8 rounded-full border-2 flex-shrink-0 transition-transform ${newPrizeColor === color ? 'scale-110 border-white' : 'border-transparent scale-100'}`}
-                                                    style={{ backgroundColor: color === 'pink' ? '#ec4899' : color === 'cyan' ? '#06b6d4' : color === 'purple' ? '#8b5cf6' : color === 'yellow' ? '#eab308' : '#10b981' }}
-                                                />
-                                            ))}
-                                        </div>
-                                        <button 
-                                            onClick={handleAddPrizeType}
-                                            className="bg-pink-600 hover:bg-pink-500 text-white py-2 rounded-lg font-bold transition-colors"
-                                        >
-                                            新增獎項類別
-                                        </button>
-                                    </div>
+                        {/* CONFIG TAB */}
+                        {tab==='config' && isAdmin && (
+                            <div className="glass-card p-6 rounded-3xl space-y-4">
+                                <div className="flex gap-2">
+                                    <input value={newType} onChange={e=>setNewType(e.target.value)} className="flex-1 bg-black/50 p-2 rounded-lg border border-white/20 outline-none" placeholder="新獎項名稱"/>
+                                    <button onClick={()=>{if(newType){db.collection('prize_types').add({name:newType,color:newColor,timestamp:firebase.firestore.FieldValue.serverTimestamp()});setNewType('')}}} className="bg-pink-600 px-4 rounded-lg font-bold">+</button>
                                 </div>
-
+                                <div className="flex gap-2 mb-4">
+                                    {Object.keys(COLORS).map(k=><button key={k} onClick={()=>setNewColor(k)} style={{background:COLORS[k].bg}} className={`w-8 h-8 rounded-full border-2 ${newColor===k?'border-white':'border-transparent'}`}></button>)}
+                                </div>
                                 <div className="space-y-2">
-                                    <h3 className="text-sm font-bold text-gray-400 mb-2 uppercase tracking-wider">現有列表</h3>
-                                    {prizeTypes.map(prize => (
-                                        <div key={prize.id} className="flex justify-between items-center bg-white/5 p-3 rounded-lg border border-white/5">
-                                            <div className="flex items-center gap-3">
-                                                <div className={`w-3 h-3 rounded-full bg-${prize.color}-500 shadow-[0_0_8px_currentColor]`} style={{color: prize.color}}/>
-                                                <span className="font-medium">{prize.name}</span>
-                                            </div>
-                                            <button 
-                                                onClick={() => handleDeletePrizeType(prize.id)}
-                                                className="text-gray-500 hover:text-red-400 transition-colors p-2"
-                                            >
-                                                <Trash2 size={18} />
-                                            </button>
+                                    {prizes.map(p=>(
+                                        <div key={p.id} className="flex justify-between items-center bg-white/5 p-3 rounded-lg border border-white/5">
+                                            <span style={{color:(COLORS[p.color]||COLORS.pink).bg}}>● {p.name}</span>
+                                            <button onClick={()=>db.collection('prize_types').doc(p.id).delete()} className="text-gray-500"><Icon name="Trash2" size={16}/></button>
                                         </div>
                                     ))}
                                 </div>
                             </div>
                         )}
+                    </div>
 
-                    </main>
+                    {/* PIN Pad */}
+                    {showPin && (
+                        <div className="fixed inset-0 bg-black/90 z-[60] flex flex-col justify-center items-center backdrop-blur-sm">
+                            <h2 className="text-xl font-bold mb-8 text-pink-500 tracking-widest">SECURITY</h2>
+                            <div className="flex gap-2 mb-8">{[0,1,2,3].map(i=><div key={i} className={`w-3 h-3 rounded-full ${pin.length>i?'bg-white':'bg-gray-700'}`}/>)}</div>
+                            <div className="grid grid-cols-3 gap-4 w-64">
+                                {[1,2,3,4,5,6,7,8,9,'C',0,'Go'].map(k=>(
+                                    <button key={k} onClick={()=>{if(k==='C')setPin('');else if(k==='Go'){if(pin==='1234'){setIsAdmin(true);setShowPin(false);setPin('')}else setPin('')}else if(pin.length<4)setPin(p=>p+k)}} className="h-16 rounded-xl bg-white/10 font-bold text-xl active:bg-white/30">{k}</button>
+                                ))}
+                            </div>
+                            <button onClick={()=>setShowPin(false)} className="mt-8 text-gray-500">取消</button>
+                        </div>
+                    )}
 
-                    {/* Admin Bottom Navigation */}
+                    {/* Navbar */}
                     {isAdmin && (
-                        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-[#1a1a2e] border border-white/10 p-1.5 rounded-2xl flex gap-1 shadow-2xl z-30">
-                            <button 
-                                onClick={() => setActiveTab('list')}
-                                className={`px-6 py-3 rounded-xl flex flex-col items-center gap-1 transition-all ${activeTab === 'list' ? 'bg-gradient-to-br from-pink-500 to-purple-600 text-white shadow-lg' : 'text-gray-400 hover:bg-white/5'}`}
-                            >
-                                <Gift size={20} />
-                                <span className="text-[10px] font-bold">名單</span>
-                            </button>
-                            <button 
-                                onClick={() => setActiveTab('add')}
-                                className={`px-6 py-3 rounded-xl flex flex-col items-center gap-1 transition-all ${activeTab === 'add' ? 'bg-gradient-to-br from-cyan-500 to-blue-600 text-white shadow-lg' : 'text-gray-400 hover:bg-white/5'}`}
-                            >
-                                <Plus size={20} />
-                                <span className="text-[10px] font-bold">新增</span>
-                            </button>
-                            <button 
-                                onClick={() => setActiveTab('config')}
-                                className={`px-6 py-3 rounded-xl flex flex-col items-center gap-1 transition-all ${activeTab === 'config' ? 'bg-gray-700 text-white shadow-lg' : 'text-gray-400 hover:bg-white/5'}`}
-                            >
-                                <Settings size={20} />
-                                <span className="text-[10px] font-bold">設定</span>
-                            </button>
+                        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 flex gap-4 bg-black/80 backdrop-blur border border-white/10 px-6 py-3 rounded-full shadow-2xl z-40">
+                            {[{id:'list',i:'Grid'},{id:'add',i:'Plus'},{id:'config',i:'Settings'}].map(t=>(
+                                <button key={t.id} onClick={()=>setTab(t.id)} className={`transition-all ${tab===t.id?'text-pink-500 scale-125':'text-gray-500'}`}><Icon name={t.i} size={24}/></button>
+                            ))}
                         </div>
                     )}
                 </div>
             );
         }
 
-        // Render React App
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
-
-        // Initialize Lucide Icons after render
-        setTimeout(() => lucide.createIcons(), 100);
     </script>
 </body>
 </html>
